@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributions import Normal, Bernoulli, Independent, OneHotCategoricalStraightThrough, Categorical
 from torch.distributions.utils import probs_to_logits
 from utils import sequentialModel1D
-
 
 class RecurrentModel(nn.Module):
     def __init__(self, recurrentSize, latentSize, actionSize, config):
