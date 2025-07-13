@@ -22,9 +22,8 @@ class CelticHeroesEnv(gym.Env):
 
     def __init__(self,
                  window_title="BlueStacks",
-                 fps=10,
-                 render_mode=None):
-        super().__init__(render_mode=render_mode)
+                 fps=10):
+        super().__init__()
         self.window_title = window_title
         self.fps = fps
         self.interval = 1.0 / fps
@@ -34,7 +33,7 @@ class CelticHeroesEnv(gym.Env):
 
         # Observation: 128×128×3 RGB
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(128, 128, 3), dtype=np.uint8
+            low=0, high=255, shape=(64, 64, 3), dtype=np.uint8
         )
 
         # Input & capture setup
@@ -87,7 +86,7 @@ class CelticHeroesEnv(gym.Env):
         lc = (w0 - side) // 2
         tc = (h0 - side) // 2
         frame = frame.crop((lc, tc, lc + side, tc + side))
-        frame = frame.resize((128, 128), Image.BILINEAR)
+        frame = frame.resize((64, 64), Image.BILINEAR)
 
         return np.array(frame), np.array(kill_img), np.array(died_img)
 
@@ -155,13 +154,3 @@ class CelticHeroesEnv(gym.Env):
     def close(self):
         self.sct.close()
         super().close()
-
-# Example usage with Gymnasium:
-# import gymnasium as gym
-# env = CelticHeroesEnv(window_title="BlueStacks", fps=10)
-# obs, info = env.reset(seed=42)
-# for _ in range(500):
-#     action = env.action_space.sample()
-#     obs, reward, terminated, truncated, info = env.step(action)
-#     if terminated or truncated:
-#         obs, info = env.reset()
