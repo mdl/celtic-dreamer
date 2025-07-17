@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal, Bernoulli, Independent, OneHotCategoricalStraightThrough, Categorical
 from torch.distributions.utils import probs_to_logits
+import torch.nn.functional as F
 from utils import sequentialModel1D
 
 class RecurrentModel(nn.Module):
@@ -9,6 +10,7 @@ class RecurrentModel(nn.Module):
         super().__init__()
         self.config = config
         self.activation = getattr(nn, self.config.activation)() # TanH or something
+        self.actionSize: int = actionSize
 
         # Recurrent model works with three inputs in total -> latent state, recurrent state and the action
         # It outputs a new recurrent state
@@ -17,7 +19,9 @@ class RecurrentModel(nn.Module):
         self.recurrent = nn.GRUCell(self.config.hiddenSize, recurrentSize) # input size, hidden size
 
     def forward(self, recurrentState, latentState, action):
-        return self.recurrent(self.activation(self.linear(torch.cat((latentState, action), -1))), recurrentState) # input = latent + action, hidden = recurrent state
+        catted = torch.cat((latentState, action), -1)
+
+        return self.recurrent(self.activation(self.linear(catted)), recurrentState) # input = latent + action, hidden = recurrent state
 
 
 class PriorNet(nn.Module):
@@ -156,19 +160,19 @@ class Actor(nn.Module):
         logits = self.network(x)
 
         # Create a Bernoulli distribution for each action dimension
-        distributions = [Bernoulli(logits=logit) for logit in logits.unbind(-1)]
+        distributions = Categorical(logits=logits)
 
         # Sample from each distribution
-        samples = torch.stack([dist.sample() for dist in distributions], dim=-1)
+        sample = distributions.sample()
 
         if training:
             # Calculate log probabilities and entropy
-            logprobs = torch.stack([dist.log_prob(sample) for dist, sample in zip(distributions, samples.unbind(-1))], dim=-1)
-            entropy = torch.stack([dist.entropy() for dist in distributions], dim=-1)
+            logprobs = distributions.log_prob(sample)
+            ent  = distributions.entropy()
 
-            return samples, logprobs.sum(-1), entropy.sum(-1)
+            return sample, logprobs, ent
         else:
-            return samples
+            return sample
 
 
 class Critic(nn.Module):

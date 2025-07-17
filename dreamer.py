@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributions import kl_divergence, Independent, OneHotCategoricalStraightThrough, Normal
 import numpy as np
 import os
@@ -133,7 +134,9 @@ class Dreamer:
         fullStates, logprobs, entropies = [], [], []
         for _ in range(self.config.imaginationHorizon):
             action, logprob, entropy = self.actor(fullState.detach(), training=True)
-            recurrentState = self.recurrentModel(recurrentState, latentState, action)
+            # Convert action to one-hot encoding for the recurrent model
+            action_one_hot = F.one_hot(action, num_classes=self.actionSize).float()
+            recurrentState = self.recurrentModel(recurrentState, latentState, action_one_hot)
             latentState, _ = self.priorNet(recurrentState)
 
             fullState = torch.cat((recurrentState, latentState), -1)
@@ -187,16 +190,17 @@ class Dreamer:
         scores = []
         for i in range(numEpisodes):
             recurrentState, latentState = torch.zeros(1, self.recurrentSize, device=self.device), torch.zeros(1,
-                                                                                                              self.latentSize,
-                                                                                                              device=self.device)
-            action = torch.zeros(1, self.actionSize).to(self.device)
+                                                                                                              self.latentSize,                                                                                               device=self.device)
+            action = torch.zeros(1, dtype=torch.int64, device=self.device)
 
             observation = env.reset(seed=(seed + self.totalEpisodes if seed else None))
             encodedObservation = self.encoder(torch.from_numpy(observation).float().unsqueeze(0).to(self.device))
 
             currentScore, stepCount, done, frames = 0, 0, False, []
             while not done:
-                recurrentState = self.recurrentModel(recurrentState, latentState, action)
+                # Convert action to one-hot encoding for the recurrent model
+                action_one_hot = F.one_hot(action, num_classes=self.actionSize).float()
+                recurrentState = self.recurrentModel(recurrentState, latentState, action_one_hot)
                 latentState, _ = self.posteriorNet(torch.cat((recurrentState, encodedObservation.view(1, -1)), -1))
 
                 action = self.actor(torch.cat((recurrentState, latentState), -1))

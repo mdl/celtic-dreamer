@@ -9,3 +9,5 @@ mainVisualizations.py
 dreamerVisual.py
 venv
 .idea/**
+data
+data/**

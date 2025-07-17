@@ -32,7 +32,7 @@ def main():
     print("Starting snake demo with MultiBinary actions and saving screenshots...")
     for step in range(total_steps):
         action = pattern[step % len(pattern)]
-        obs, kill, reward, done, info = env.step(action)
+        obs, reward, done, _, kill = env.step(action)
         print(f"Step {step+1}/{total_steps}: action={action.tolist()}, reward={reward}, done={done}")
 
         # Save the observation image

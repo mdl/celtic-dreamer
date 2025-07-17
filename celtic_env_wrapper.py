@@ -28,10 +28,10 @@ class CelticHeroesEnv(gym.Env):
         self.fps = fps
         self.interval = 1.0 / fps
 
-        # Multi-hot actions: [forward, turn_left, turn_right]
-        self.action_space = spaces.MultiBinary(3)
+        # 0=idle, 1=forward, 2=turn_left, 3=turn_right
+        self.action_space = spaces.Discrete(4)
 
-        # Observation: 128×128×3 RGB
+        # Observation: 64×64×3 RGB
         self.observation_space = spaces.Box(
             low=0, high=255, shape=(64, 64, 3), dtype=np.uint8
         )
@@ -93,12 +93,13 @@ class CelticHeroesEnv(gym.Env):
     def _parse_kill_id(self, img_rgb):
         gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
         _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
-        text = pytesseract.image_to_string(thresh, config="--psm 6").lower()
+        text = pytesseract.image_to_string(img_rgb, config="--psm 6").lower()
         gm = re.search(r"(\d{2})[.\s]*gold", text)
         xm = re.search(r"(\d{2})[.\s]*xp", text)
         gold = gm.group(1) if gm else ""
         xp = xm.group(1) if xm else ""
-        return f"{gold}_{xp}" if (gold or xp) else None
+        if gold: print('kill gold:', gold)
+        return f"{gold}" if (gold) else None
 
     def _detect_died(self, img_rgb):
         gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
@@ -109,11 +110,13 @@ class CelticHeroesEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         # optional: super().reset(seed=seed) to seed RNGs if needed
         left, top, _, _ = self.capture_region
-        dx, dy = 650, 330
-        self.mouse.position = (left + dx, top + dy)
+        self.mouse.position = (left + 650, top + 430)
         time.sleep(0.1)
         self.mouse.click(Button.left)
-        time.sleep(1.0)
+        time.sleep(2.0)
+        self.mouse.position = (left + 525, top + 438)
+        time.sleep(0.1)
+        self.mouse.click(Button.left)
 
         self.prev_kill_id = None
         obs, _, _ = self._grab_frame()
@@ -121,30 +124,44 @@ class CelticHeroesEnv(gym.Env):
         return obs, info
 
     def step(self, action):
-        # press/release keys
-        if action[0]: self.keyboard.press('w')
-        else:            self.keyboard.release('w')
-        if action[1]: self.keyboard.press('q')
-        else:            self.keyboard.release('q')
-        if action[2]: self.keyboard.press('e')
-        else:            self.keyboard.release('e')
+        # first, release everything
+        for k in ('w', 'q', 'e'):
+            self.keyboard.release(k)
 
-        time.sleep(self.interval)
+        # press only the chosen key
+        if action == 1:
+            self.keyboard.press('w')
+        elif action == 2:
+            self.keyboard.press('q')
+        elif action == 3:
+            self.keyboard.press('e')
+        # else action==0 → idle
+
+        time.sleep(self.interval * 1.5)
+
+        # release again so no sticky keys
+        for k in ('w', 'q', 'e'):
+            self.keyboard.release(k)
+
         obs, kill_img, died_img = self._grab_frame()
 
         # compute reward
         kill_id = self._parse_kill_id(kill_img)
-        reward = 1.0 if (kill_id and kill_id != self.prev_kill_id) else 0.0
-        if kill_id: self.prev_kill_id = kill_id
+        # reward = 1.0 if (kill_id and kill_id != self.prev_kill_id) else 0.0
+        # if kill_id: self.prev_kill_id = kill_id
+        reward = 1.0 if kill_id else 0.0
 
         if self._detect_died(died_img):
-            reward -= 3
+            print('died', time.time())
+            reward -= 10
             terminated = True
         else:
             terminated = False
 
+        if reward: print('reward received')
+
         truncated = False
-        info = {}
+        info = kill_img
         return obs, reward, terminated, truncated, info
 
     def render(self):
