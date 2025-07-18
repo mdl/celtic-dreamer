@@ -25,7 +25,7 @@ def main():
         # np.array([1, 1, 0], dtype=np.int8),  # turn left
         # np.array([1, 0, 0], dtype=np.int8),  # forward
         # np.array([1, 0, 1], dtype=np.int8),  # turn right
-        np.array([0, 0, 0], dtype=np.int8),  # forward
+        np.array(0, dtype=np.int8),  # forward
     ]
     total_steps = 200
 

@@ -105,17 +105,20 @@ class CelticHeroesEnv(gym.Env):
         gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
         _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
         text = pytesseract.image_to_string(thresh, config="--psm 6").lower()
-        return 'died' in text
+        return ('died' in text) or ('sure you' in text) or ('resurrect' in text)
 
     def reset(self, *, seed=None, options=None):
         # optional: super().reset(seed=seed) to seed RNGs if needed
         left, top, _, _ = self.capture_region
         self.mouse.position = (left + 650, top + 430)
-        time.sleep(0.1)
+        self.mouse.click(Button.left)
+        self.mouse.click(Button.left)
         self.mouse.click(Button.left)
         time.sleep(2.0)
-        self.mouse.position = (left + 525, top + 438)
-        time.sleep(0.1)
+        # self.mouse.position = (left + 525, top + 438)
+        self.mouse.position = (left + 525, top + 458)
+        self.mouse.click(Button.left)
+        self.mouse.click(Button.left)
         self.mouse.click(Button.left)
 
         self.prev_kill_id = None
@@ -131,13 +134,14 @@ class CelticHeroesEnv(gym.Env):
         # press only the chosen key
         if action == 1:
             self.keyboard.press('w')
+            time.sleep(self.interval * 10)
         elif action == 2:
             self.keyboard.press('q')
         elif action == 3:
             self.keyboard.press('e')
         # else action==0 → idle
 
-        time.sleep(self.interval * 1.5)
+        time.sleep(self.interval * 3)
 
         # release again so no sticky keys
         for k in ('w', 'q', 'e'):

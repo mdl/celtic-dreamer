@@ -11,3 +11,5 @@ venv
 .idea/**
 data
 data/**
+demo_ss
+demo_ss/**
