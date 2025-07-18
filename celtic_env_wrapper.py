@@ -22,11 +22,15 @@ class CelticHeroesEnv(gym.Env):
 
     def __init__(self,
                  window_title="BlueStacks",
-                 fps=10):
+                 fps=10,
+                 max_steps = 1000):
         super().__init__()
         self.window_title = window_title
         self.fps = fps
         self.interval = 1.0 / fps
+
+        self.max_steps = max_steps
+        self.current_steps = 0
 
         # 0=idle, 1=forward, 2=turn_left, 3=turn_right
         self.action_space = spaces.Discrete(4)
@@ -121,6 +125,7 @@ class CelticHeroesEnv(gym.Env):
         self.mouse.click(Button.left)
         self.mouse.click(Button.left)
 
+        self.current_steps = 0
         self.prev_kill_id = None
         obs, _, _ = self._grab_frame()
         info = {}
@@ -166,6 +171,11 @@ class CelticHeroesEnv(gym.Env):
 
         truncated = False
         info = kill_img
+
+        if self.current_steps >= self.max_steps:
+            print('MAX STEPS REACHED')
+            terminated = True
+
         return obs, reward, terminated, truncated, info
 
     def render(self):
