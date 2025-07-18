@@ -189,7 +189,7 @@ class Dreamer:
                                filename="videos/unnamedVideo", fps=30, macroBlockSize=16):
         scores = []
         for i in range(numEpisodes):
-            recurrentState = torch.zeros(1, self.recurrentSize, device=self.device),
+            recurrentState = torch.zeros(1, self.recurrentSize, device=self.device)
             latentState = torch.zeros(1, self.latentSize, device=self.device)
             action = torch.zeros(1, dtype=torch.int64, device=self.device)
 
