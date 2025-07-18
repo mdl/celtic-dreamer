@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal, Bernoulli, Independent, OneHotCategoricalStraightThrough, Categorical
 from torch.distributions.utils import probs_to_logits
-import torch.nn.functional as F
 from utils import sequentialModel1D
 
 class RecurrentModel(nn.Module):

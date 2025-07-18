@@ -189,8 +189,8 @@ class Dreamer:
                                filename="videos/unnamedVideo", fps=30, macroBlockSize=16):
         scores = []
         for i in range(numEpisodes):
-            recurrentState, latentState = torch.zeros(1, self.recurrentSize, device=self.device), torch.zeros(1,
-                                                                                                              self.latentSize,                                                                                               device=self.device)
+            recurrentState = torch.zeros(1, self.recurrentSize, device=self.device),
+            latentState = torch.zeros(1, self.latentSize, device=self.device)
             action = torch.zeros(1, dtype=torch.int64, device=self.device)
 
             observation = env.reset(seed=(seed + self.totalEpisodes if seed else None))
@@ -200,9 +200,17 @@ class Dreamer:
             while not done:
                 # Convert action to one-hot encoding for the recurrent model
                 action_one_hot = F.one_hot(action, num_classes=self.actionSize).float()
+
+                # recurrentState + latentState = previous full state
+                # action is previous action
+                # so recurrentState is representation of current state based on
+                # prev full state and prev action
+                # AS YOU SEE IT DOESN'T USE ENCODED OBSERVATION
                 recurrentState = self.recurrentModel(recurrentState, latentState, action_one_hot)
+                # knows about current observation and predicted current recurrent state
                 latentState, _ = self.posteriorNet(torch.cat((recurrentState, encodedObservation.view(1, -1)), -1))
 
+                # actor performs action based on current full state
                 action = self.actor(torch.cat((recurrentState, latentState), -1))
                 actionNumpy = action.cpu().numpy().reshape(-1)
 
@@ -219,6 +227,7 @@ class Dreamer:
                         np.pad(frame, ((0, targetHeight - frame.shape[0]), (0, targetWidth - frame.shape[1]), (0, 0)),
                                mode='edge'))
 
+                # ACTION DONE - UPDATE OBSERVATION
                 encodedObservation = self.encoder(
                     torch.from_numpy(nextObservation).float().unsqueeze(0).to(self.device))
                 observation = nextObservation
