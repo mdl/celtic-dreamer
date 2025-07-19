@@ -34,9 +34,9 @@ def main(configFile):
 
     dreamer.environmentInteraction(env, config.episodesBeforeStart, seed=config.seed)
 
-    iterationsNum = config.gradientSteps // config.replayRatio
+    iterationsNum = config.gradientSteps // config.replayRatio # = 600 env interactions
     for _ in tqdm(range(iterationsNum)):
-        for _ in range(config.replayRatio):
+        for _ in range(config.replayRatio): # 100
             sampledData = dreamer.buffer.sample(dreamer.config.batchSize, dreamer.config.batchLength)
             initialStates, worldModelMetrics = dreamer.worldModelTraining(sampledData)
             behaviorMetrics = dreamer.behaviorTraining(initialStates)

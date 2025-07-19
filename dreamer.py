@@ -55,9 +55,10 @@ class Dreamer:
         self.totalEnvSteps = 0
         self.totalGradientSteps = 0
 
+    # data is sampled data from buffer
     def worldModelTraining(self, data):
-        encodedObservations = self.encoder(data.observations.view(-1, *self.observationShape)).view(
-            self.config.batchSize, self.config.batchLength, -1)
+        encodedObservations = (self.encoder(data.observations.view(-1, *self.observationShape))
+            .view(self.config.batchSize, self.config.batchLength, -1))
         previousRecurrentState = torch.zeros(self.config.batchSize, self.recurrentSize,
                                              device=self.device)  # Initialization of the recurrent state
         previousLatentState = torch.zeros(self.config.batchSize, self.latentSize,
@@ -216,6 +217,7 @@ class Dreamer:
 
                 nextObservation, reward, done = env.step(actionNumpy)
                 if not evaluation:
+                    # action that was done + state after that action
                     self.buffer.add(observation, actionNumpy, reward, nextObservation, done)
 
                 if saveVideo and i == 0:
