@@ -23,7 +23,7 @@ class CelticHeroesEnv(gym.Env):
     def __init__(self,
                  window_title="BlueStacks",
                  fps=10,
-                 max_steps = 1000):
+                 max_steps = 300):
         super().__init__()
         self.window_title = window_title
         self.fps = fps
@@ -84,7 +84,7 @@ class CelticHeroesEnv(gym.Env):
         # Crop kill & death regions, then center‐crop & resize
         w0, h0 = frame.size
         kill_img = frame.crop(self._normalize_dimensions(w0, (100, 120, 340, 370)))
-        died_img = frame.crop(self._normalize_dimensions(w0, (500, 200, 750, 270)))
+        died_img = frame.crop(self._normalize_dimensions(w0, (500, 200, 750, 400)))
 
         side = min(w0, h0)
         lc = (w0 - side) // 2
@@ -109,25 +109,25 @@ class CelticHeroesEnv(gym.Env):
         gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
         _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
         text = pytesseract.image_to_string(thresh, config="--psm 6").lower()
-        return ('died' in text) or ('sure you' in text) or ('resurrect' in text)
+        return ('died' in text) or ('you have' in text) or ('you want' in text) or ('in your' in text)
 
     def reset(self, *, seed=None, options=None):
-        # optional: super().reset(seed=seed) to seed RNGs if needed
         left, top, _, _ = self.capture_region
         self.mouse.position = (left + 650, top + 430)
-        self.mouse.click(Button.left)
-        self.mouse.click(Button.left)
+        time.sleep(.1)
         self.mouse.click(Button.left)
         time.sleep(2.0)
-        # self.mouse.position = (left + 525, top + 438)
         self.mouse.position = (left + 525, top + 458)
+        time.sleep(.1)
         self.mouse.click(Button.left)
-        self.mouse.click(Button.left)
-        self.mouse.click(Button.left)
+
+        obs, _, died_img = self._grab_frame()
+        if self._detect_died(died_img):
+            return self.reset()
 
         self.current_steps = 0
         self.prev_kill_id = None
-        obs, _, _ = self._grab_frame()
+
         info = {}
         return obs, info
 
@@ -139,14 +139,15 @@ class CelticHeroesEnv(gym.Env):
         # press only the chosen key
         if action == 1:
             self.keyboard.press('w')
-            time.sleep(self.interval * 10)
+            time.sleep(self.interval * 15)
         elif action == 2:
             self.keyboard.press('q')
+            time.sleep(self.interval * 3)
         elif action == 3:
             self.keyboard.press('e')
-        # else action==0 → idle
-
-        time.sleep(self.interval * 3)
+            time.sleep(self.interval * 3)
+        elif action == 0:
+            time.sleep(self.interval * 15)
 
         # release again so no sticky keys
         for k in ('w', 'q', 'e'):
@@ -162,7 +163,6 @@ class CelticHeroesEnv(gym.Env):
 
         if self._detect_died(died_img):
             print('died', time.time())
-            reward -= 10
             terminated = True
         else:
             terminated = False
@@ -176,7 +176,7 @@ class CelticHeroesEnv(gym.Env):
             print('MAX STEPS REACHED')
             terminated = True
 
-        return obs, reward, terminated, truncated, info
+        return obs, reward - 0.01, terminated, truncated, info
 
     def render(self):
         # implement if you want to display frames

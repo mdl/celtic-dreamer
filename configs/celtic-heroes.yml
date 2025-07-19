@@ -3,7 +3,7 @@ runName: test
 seed: 1234
 
 gradientSteps: 60000
-replayRatio: 100
+replayRatio: 30 #100
 saveMetrics: True        # Saves metrics at replayRatio interval
 saveCheckpoints: True
 checkpointInterval: 2000
@@ -16,13 +16,13 @@ numEvaluationEpisodes: 1
 
 dreamer:
     batchSize: 32
-    batchLength: 64
+    batchLength: 128
     imaginationHorizon: 15
 
-    recurrentSize: 512
-    latentLength: 16
-    latentClasses: 16
-    encodedObsSize: 1024
+    recurrentSize: 1024 #512
+    latentLength: 32 #16
+    latentClasses: 32 #16
+    encodedObsSize: 1024 #2048
 
     useContinuationPrediction: False
     actorLR: 0.00004
@@ -58,13 +58,13 @@ dreamer:
         activation: Tanh
 
     priorNet: 
-        hiddenSize: 200
+        hiddenSize: 400 #200
         numLayers: 2
         activation: Tanh
         uniformMix: 0.01
 
     posteriorNet:
-        hiddenSize: 200
+        hiddenSize: 400 #200
         numLayers: 2
         activation: Tanh
         uniformMix: 0.01
