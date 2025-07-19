@@ -117,8 +117,10 @@ class EncoderConv(nn.Module):
             nn.Conv2d(self.config.depth*1, self.config.depth*2, self.config.kernelSize, self.config.stride, padding=1), activation,
             nn.Conv2d(self.config.depth*2, self.config.depth*4, self.config.kernelSize, self.config.stride, padding=1), activation,
             nn.Conv2d(self.config.depth*4, self.config.depth*8, self.config.kernelSize, self.config.stride, padding=1), activation,
+            # Add an additional convolutional layer to handle the larger input dimensions
+            nn.Conv2d(self.config.depth*8, self.config.depth*16, self.config.kernelSize, self.config.stride, padding=1), activation,
             nn.Flatten(),
-            nn.Linear(self.config.depth*8*(height // (self.config.stride ** 4))*(width // (self.config.stride ** 4)), outputSize), 
+            nn.Linear(self.config.depth*16*(height // (self.config.stride ** 5))*(width // (self.config.stride ** 5)), outputSize), 
             activation)
 
     def forward(self, x):
@@ -136,10 +138,11 @@ class DecoderConv(nn.Module):
             nn.Linear(inputSize, self.config.depth*32),
             nn.Unflatten(1, (self.config.depth*32, 1)),
             nn.Unflatten(2, (1, 1)),
-            nn.ConvTranspose2d(self.config.depth*32, self.config.depth*4, self.config.kernelSize,     self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*4,  self.config.depth*2, self.config.kernelSize,     self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*2,  self.config.depth*1, self.config.kernelSize + 1, self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*1,  self.channels,       self.config.kernelSize + 1, self.config.stride))
+            nn.ConvTranspose2d(self.config.depth*32, self.config.depth*16, self.config.kernelSize,     self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*16, self.config.depth*8,  self.config.kernelSize,     self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*8,  self.config.depth*4,  self.config.kernelSize,     self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*4,  self.config.depth*2,  self.config.kernelSize,     self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*2,  self.channels,        self.config.kernelSize + 1, self.config.stride))
 
     def forward(self, x):
         return self.network(x)

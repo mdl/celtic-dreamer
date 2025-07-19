@@ -12,12 +12,6 @@ import pywinctl as pwc
 import pytesseract
 
 class CelticHeroesEnv(gym.Env):
-    """
-    Gymnasium environment for Celtic Heroes via automatic window‐based capture.
-    Actions: MultiBinary(3) for [forward, turn_left, turn_right].
-    Observations: 128×128 RGB frames cropped to center square.
-    Rewards: +1 on kill, -3 on death.
-    """
     metadata = {"render_modes": ["human"]}
 
     def __init__(self,
@@ -35,9 +29,9 @@ class CelticHeroesEnv(gym.Env):
         # 0=idle, 1=forward, 2=turn_left, 3=turn_right
         self.action_space = spaces.Discrete(4)
 
-        # Observation: 64×64×3 RGB
+        # Observation: 128×128×3 RGB
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(64, 64, 3), dtype=np.uint8
+            low=0, high=255, shape=(128, 128, 3), dtype=np.uint8
         )
 
         # Input & capture setup
@@ -90,7 +84,7 @@ class CelticHeroesEnv(gym.Env):
         lc = (w0 - side) // 2
         tc = (h0 - side) // 2
         frame = frame.crop((lc, tc, lc + side, tc + side))
-        frame = frame.resize((64, 64), Image.BILINEAR)
+        frame = frame.resize((128, 128), Image.BILINEAR)
 
         return np.array(frame), np.array(kill_img), np.array(died_img)
 
