@@ -87,9 +87,14 @@ class Dreamer:
         fullStates = torch.cat((recurrentStates, posteriors),
                                dim=-1)  # (batchSize, batchLength-1, recurrentSize + latentLength*latentClasses)
 
-        reconstructionMeans = self.decoder(fullStates.view(-1, self.fullStateSize)).view(self.config.batchSize,
-                                                                                         self.config.batchLength - 1,
-                                                                                         *self.observationShape)
+        # Get the decoder output and reshape it to match the expected dimensions
+        decoderOutput = self.decoder(fullStates.view(-1, self.fullStateSize))
+
+        # Calculate the expected shape based on batch size and sequence length
+        expectedShape = (self.config.batchSize, self.config.batchLength - 1) + self.observationShape
+
+        # Reshape the decoder output to match the expected shape
+        reconstructionMeans = decoderOutput.view(expectedShape)
         reconstructionDistribution = Independent(Normal(reconstructionMeans, 1), len(self.observationShape))
         reconstructionLoss = -reconstructionDistribution.log_prob(data.observations[:, 1:]).mean()
 
@@ -104,7 +109,7 @@ class Dreamer:
         priorLoss = kl_divergence(posteriorDistributionSG, priorDistribution)
         posteriorLoss = kl_divergence(posteriorDistribution, priorDistributionSG)
         freeNats = torch.full_like(priorLoss, self.config.freeNats)
-
+# 71, 121, 400, 400, 400
         priorLoss = self.config.betaPrior * torch.maximum(priorLoss, freeNats)
         posteriorLoss = self.config.betaPosterior * torch.maximum(posteriorLoss, freeNats)
         klLoss = (priorLoss + posteriorLoss).mean()

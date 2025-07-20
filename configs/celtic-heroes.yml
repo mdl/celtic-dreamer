@@ -16,7 +16,7 @@ numEvaluationEpisodes: 1     # Number of episodes to evaluate the agent's perfor
 
 dreamer:
     batchSize: 32            # Number of sequences sampled from replay buffer per update
-    batchLength: 128          # Length of each sequence sampled from replay buffer
+    batchLength: 256          # Length of each sequence sampled from replay buffer
     imaginationHorizon: 15   # Number of imagination steps for actor-critic training
 
     recurrentSize: 1024 #512       # Size of the recurrent state vector in the world model

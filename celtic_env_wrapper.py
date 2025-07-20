@@ -17,7 +17,7 @@ class CelticHeroesEnv(gym.Env):
     def __init__(self,
                  window_title="BlueStacks",
                  fps=10,
-                 max_steps = 300):
+                 max_steps = 400):
         super().__init__()
         self.window_title = window_title
         self.fps = fps
@@ -111,7 +111,7 @@ class CelticHeroesEnv(gym.Env):
         time.sleep(.1)
         self.mouse.click(Button.left)
         time.sleep(2.0)
-        self.mouse.position = (left + 525, top + 458)
+        self.mouse.position = (left + 525, top + 458) # 438 458
         time.sleep(.1)
         self.mouse.click(Button.left)
 
@@ -132,15 +132,19 @@ class CelticHeroesEnv(gym.Env):
 
         # press only the chosen key
         if action == 1:
+            print('going forward ', self.current_steps, ' of ', self.max_steps)
             self.keyboard.press('w')
             time.sleep(self.interval * 15)
         elif action == 2:
+            print('turning left ', self.current_steps, ' of ', self.max_steps)
             self.keyboard.press('q')
             time.sleep(self.interval * 3)
         elif action == 3:
+            print('turning right ', self.current_steps, ' of ', self.max_steps)
             self.keyboard.press('e')
             time.sleep(self.interval * 3)
         elif action == 0:
+            print('waiting ', self.current_steps, ' of ', self.max_steps)
             time.sleep(self.interval * 15)
 
         # release again so no sticky keys
@@ -169,6 +173,8 @@ class CelticHeroesEnv(gym.Env):
         if self.current_steps >= self.max_steps:
             print('MAX STEPS REACHED')
             terminated = True
+
+        self.current_steps += 1
 
         return obs, reward - 0.01, terminated, truncated, info
 
