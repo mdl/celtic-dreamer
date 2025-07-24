@@ -3,10 +3,10 @@ runName: test                # Identifier for the current training run
 seed: 1234                   # Random seed for reproducibility
 
 gradientSteps: 60000         # Total number of gradient steps to perform during training
-replayRatio: 30 #100             # Number of model updates per environment interaction
+replayRatio: 100 #100             # Number of model updates per environment interaction
 saveMetrics: True            # Whether to save training metrics
 saveCheckpoints: True        # Whether to save model checkpoints
-checkpointInterval: 2000     # Number of gradient steps between saving checkpoints
+checkpointInterval: 250     # Number of gradient steps between saving checkpoints
 resume: False                # Whether to resume training from a checkpoint
 checkpointToLoad: 50k        # Checkpoint to load if resuming training (e.g., "50k" means 50,000 steps)
 
@@ -15,13 +15,13 @@ numInteractionEpisodes: 1    # Number of episodes to interact with environment b
 numEvaluationEpisodes: 1     # Number of episodes to evaluate the agent's performance
 
 dreamer:
-    batchSize: 32            # Number of sequences sampled from replay buffer per update
-    batchLength: 256          # Length of each sequence sampled from replay buffer
+    batchSize: 64            # Number of sequences sampled from replay buffer per update
+    batchLength: 128          # Length of each sequence sampled from replay buffer
     imaginationHorizon: 15   # Number of imagination steps for actor-critic training
 
-    recurrentSize: 1024 #512       # Size of the recurrent state vector in the world model
-    latentLength: 32 #16         # Number of discrete latent variables
-    latentClasses: 32 #16        # Number of categories for each discrete latent variable
+    recurrentSize: 512 #512       # Size of the recurrent state vector in the world model
+    latentLength: 16 #16         # Number of discrete latent variables
+    latentClasses: 16 #16        # Number of categories for each discrete latent variable
     encodedObsSize: 1024 #2048     # Size of the encoded observation vector
 
     useContinuationPrediction: False  # Whether to predict episode termination
@@ -58,13 +58,13 @@ dreamer:
         activation: Tanh     # Activation function for recurrent model
 
     priorNet:                # Network that predicts prior distribution over latent states
-        hiddenSize: 400 #200      # Size of hidden layers in the prior network
+        hiddenSize: 200  #200      # Size of hidden layers in the prior network
         numLayers: 2         # Number of hidden layers in the prior network
         activation: Tanh     # Activation function for prior network
         uniformMix: 0.01     # Amount of uniform distribution to mix with predicted distribution
 
     posteriorNet:            # Network that infers posterior distribution over latent states
-        hiddenSize: 400 #200      # Size of hidden layers in the posterior network
+        hiddenSize: 200 #200      # Size of hidden layers in the posterior network
         numLayers: 2         # Number of hidden layers in the posterior network
         activation: Tanh     # Activation function for posterior network
         uniformMix: 0.01     # Amount of uniform distribution to mix with predicted distribution

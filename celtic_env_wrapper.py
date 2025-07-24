@@ -31,7 +31,7 @@ class CelticHeroesEnv(gym.Env):
 
         # Observation: 128×128×3 RGB
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(128, 128, 3), dtype=np.uint8
+            low=0, high=255, shape=(64, 64, 3), dtype=np.uint8
         )
 
         # Input & capture setup
@@ -84,7 +84,7 @@ class CelticHeroesEnv(gym.Env):
         lc = (w0 - side) // 2
         tc = (h0 - side) // 2
         frame = frame.crop((lc, tc, lc + side, tc + side))
-        frame = frame.resize((128, 128), Image.BILINEAR)
+        frame = frame.resize((64, 64), Image.BILINEAR)
 
         return np.array(frame), np.array(kill_img), np.array(died_img)
 

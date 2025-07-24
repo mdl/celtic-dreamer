@@ -57,6 +57,9 @@ class Dreamer:
 
     # data is sampled data from buffer
     def worldModelTraining(self, data):
+        # data.observations has correct shape of torch.Size([32, 256, 3, 128, 128])
+
+
         encodedObservations = (self.encoder(data.observations.view(-1, *self.observationShape))
             .view(self.config.batchSize, self.config.batchLength, -1))
         previousRecurrentState = torch.zeros(self.config.batchSize, self.recurrentSize,
@@ -128,11 +131,45 @@ class Dreamer:
         self.worldModelOptimizer.step()
 
         klLossShiftForGraphing = (self.config.betaPrior + self.config.betaPosterior) * self.config.freeNats
+
+        if self.totalGradientSteps % 500 == 0:  # Log every 1000 gradient steps
+            from torchvision.utils import save_image
+            import os
+            os.makedirs("reconstructions", exist_ok=True)
+            with torch.no_grad():
+                # Select first 4 batches and first 8 time steps for visualization
+                num_batches_to_show = 4
+                num_timesteps_to_show = 8
+
+                # Get the corresponding slices. recon_obs at its time t corresponds to true_obs at time t+1.
+                true_obs = data.observations[:num_batches_to_show, 1:num_timesteps_to_show + 1]
+                recon_obs = reconstructionMeans[:num_batches_to_show, :num_timesteps_to_show]
+
+                # Reshape from (B, T, C, H, W) to (B*T, C, H, W) to create a batch of images
+                true_obs_flat = true_obs.reshape(-1, *self.observationShape)
+                recon_obs_flat = recon_obs.reshape(-1, *self.observationShape)
+
+                # Concatenate them to create a single grid.
+                # The first half of images will be true, the second half will be reconstructions.
+                comparison_batch = torch.cat([true_obs_flat, recon_obs_flat], dim=0)
+
+                # Clamp values to the valid [0, 1] range for image saving
+                comparison_batch = torch.clamp(comparison_batch, 0, 1)
+
+                # Save the image grid. With nrow=8, this will create an 8x8 grid.
+                # The top 4 rows are the real observations, and the bottom 4 are the reconstructions.
+                save_image(
+                    comparison_batch.cpu(),
+                    f"reconstructions/step_{self.totalGradientSteps}.png",
+                    nrow=num_timesteps_to_show
+                )
+
         metrics = {
             "worldModelLoss": worldModelLoss.item() - klLossShiftForGraphing,
             "reconstructionLoss": reconstructionLoss.item(),
             "rewardPredictorLoss": rewardLoss.item(),
             "klLoss": klLoss.item() - klLossShiftForGraphing}
+
         return fullStates.view(-1, self.fullStateSize).detach(), metrics
 
     def behaviorTraining(self, fullState):

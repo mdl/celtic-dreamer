@@ -4,23 +4,25 @@ from torch.distributions import Normal, Bernoulli, Independent, OneHotCategorica
 from torch.distributions.utils import probs_to_logits
 from utils import sequentialModel1D
 
+
 class RecurrentModel(nn.Module):
     def __init__(self, recurrentSize, latentSize, actionSize, config):
         super().__init__()
         self.config = config
-        self.activation = getattr(nn, self.config.activation)() # TanH or something
+        self.activation = getattr(nn, self.config.activation)()  # TanH or something
         self.actionSize: int = actionSize
 
         # Recurrent model works with three inputs in total -> latent state, recurrent state and the action
         # It outputs a new recurrent state
         # Rs_1 = RecurrentModel(Rs_0, Ls_0, a_0)
         self.linear = nn.Linear(latentSize + actionSize, self.config.hiddenSize)
-        self.recurrent = nn.GRUCell(self.config.hiddenSize, recurrentSize) # input size, hidden size
+        self.recurrent = nn.GRUCell(self.config.hiddenSize, recurrentSize)  # input size, hidden size
 
     def forward(self, recurrentState, latentState, action):
         catted = torch.cat((latentState, action), -1)
 
-        return self.recurrent(self.activation(self.linear(catted)), recurrentState) # input = latent + action, hidden = recurrent state
+        return self.recurrent(self.activation(self.linear(catted)),
+                              recurrentState)  # input = latent + action, hidden = recurrent state
 
 
 class PriorNet(nn.Module):
@@ -29,20 +31,23 @@ class PriorNet(nn.Module):
         self.config = config
         self.latentLength = latentLength
         self.latentClasses = latentClasses
-        self.latentSize = latentLength*latentClasses
-        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize]*self.config.numLayers, self.latentSize, self.config.activation)
+        self.latentSize = latentLength * latentClasses
+        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize] * self.config.numLayers, self.latentSize,
+                                         self.config.activation)
 
     def forward(self, x):
         rawLogits = self.network(x)
 
-        probabilities = rawLogits.view(-1, self.latentLength, self.latentClasses).softmax(-1) # Convert logits to probabilities
-        uniform = torch.ones_like(probabilities)/self.latentClasses # Create a uniform probability distribution for each discrete latent variable
+        probabilities = rawLogits.view(-1, self.latentLength, self.latentClasses).softmax(
+            -1)  # Convert logits to probabilities
+        uniform = torch.ones_like(
+            probabilities) / self.latentClasses  # Create a uniform probability distribution for each discrete latent variable
 
         # This line performs a uniform mixing of probabilities. It's a regularization technique. 
         # By mixing the network's predicted probabilities with a small amount of a uniform distribution, we ensure:
         # No probability ever becomes exactly zero or one. This can help prevent the model from becoming overly confident and can improve numerical stability.
         # It encourages a small amount of exploration in the latent space, ensuring that all latent classes have at least a tiny chance of being selected. 
-        finalProbabilities = (1 - self.config.uniformMix)*probabilities + self.config.uniformMix*uniform
+        finalProbabilities = (1 - self.config.uniformMix) * probabilities + self.config.uniformMix * uniform
 
         logits = probs_to_logits(finalProbabilities)
         sample = Independent(OneHotCategoricalStraightThrough(logits=logits), 1).rsample()
@@ -56,15 +61,16 @@ class PosteriorNet(nn.Module):
         self.config = config
         self.latentLength = latentLength
         self.latentClasses = latentClasses
-        self.latentSize = latentLength*latentClasses
-        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize]*self.config.numLayers, self.latentSize, self.config.activation)
+        self.latentSize = latentLength * latentClasses
+        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize] * self.config.numLayers, self.latentSize,
+                                         self.config.activation)
 
     def forward(self, x):
         rawLogits = self.network(x)
 
         probabilities = rawLogits.view(-1, self.latentLength, self.latentClasses).softmax(-1)
-        uniform = torch.ones_like(probabilities)/self.latentClasses
-        finalProbabilities = (1 - self.config.uniformMix)*probabilities + self.config.uniformMix*uniform
+        uniform = torch.ones_like(probabilities) / self.latentClasses
+        finalProbabilities = (1 - self.config.uniformMix) * probabilities + self.config.uniformMix * uniform
         logits = probs_to_logits(finalProbabilities)
 
         sample = Independent(OneHotCategoricalStraightThrough(logits=logits), 1).rsample()
@@ -77,7 +83,8 @@ class RewardModel(nn.Module):
         self.config = config
 
         # The input is the full state, the output is the mean and std (given out as log std)
-        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize]*self.config.numLayers, 2, self.config.activation)
+        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize] * self.config.numLayers, 2,
+                                         self.config.activation)
 
     def forward(self, x):
         mean, logStd = self.network(x).chunk(2, dim=-1)
@@ -94,7 +101,8 @@ class ContinueModel(nn.Module):
 
         # Output is 1 dimensional - yes or no
         # Creates an MLP that outputs a single value (a logit)
-        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize]*self.config.numLayers, 1, self.config.activation)
+        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize] * self.config.numLayers, 1,
+                                         self.config.activation)
 
     def forward(self, x):
         # The output of the network is a logit.
@@ -113,19 +121,25 @@ class EncoderConv(nn.Module):
         self.outputSize = outputSize
 
         self.convolutionalNet = nn.Sequential(
-            nn.Conv2d(channels,            self.config.depth*1, self.config.kernelSize, self.config.stride, padding=1), activation,
-            nn.Conv2d(self.config.depth*1, self.config.depth*2, self.config.kernelSize, self.config.stride, padding=1), activation,
-            nn.Conv2d(self.config.depth*2, self.config.depth*4, self.config.kernelSize, self.config.stride, padding=1), activation,
-            nn.Conv2d(self.config.depth*4, self.config.depth*8, self.config.kernelSize, self.config.stride, padding=1), activation,
+            nn.Conv2d(channels, self.config.depth * 1, self.config.kernelSize, self.config.stride, padding=1),
+            activation,
+            nn.Conv2d(self.config.depth * 1, self.config.depth * 2, self.config.kernelSize, self.config.stride,
+                      padding=1), activation,
+            nn.Conv2d(self.config.depth * 2, self.config.depth * 4, self.config.kernelSize, self.config.stride,
+                      padding=1), activation,
+            nn.Conv2d(self.config.depth * 4, self.config.depth * 8, self.config.kernelSize, self.config.stride,
+                      padding=1), activation,
             # Add an additional convolutional layer to handle the larger input dimensions
-            nn.Conv2d(self.config.depth*8, self.config.depth*16, self.config.kernelSize, self.config.stride, padding=1), activation,
+            nn.Conv2d(self.config.depth * 8, self.config.depth * 16, self.config.kernelSize, self.config.stride,
+                      padding=1), activation,
             nn.Flatten(),
-            nn.Linear(self.config.depth*16*(height // (self.config.stride ** 5))*(width // (self.config.stride ** 5)), outputSize), 
+            nn.Linear(
+                self.config.depth * 16 * (height // (self.config.stride ** 5)) * (width // (self.config.stride ** 5)),
+                outputSize),
             activation)
 
     def forward(self, x):
         return self.convolutionalNet(x).view(-1, self.outputSize)
-
 
 class DecoderConv(nn.Module):
     def __init__(self, inputSize, outputShape, config):
@@ -134,15 +148,26 @@ class DecoderConv(nn.Module):
         self.channels, self.height, self.width = outputShape
         activation = getattr(nn, self.config.activation)()
 
+        # # 128x128
+        # self.network = nn.Sequential(
+        #     nn.Linear(inputSize, self.config.depth * 32 * 4 * 4),
+        #     nn.Unflatten(1, (self.config.depth * 32, 4, 4)),
+        #     nn.ConvTranspose2d(self.config.depth * 32, self.config.depth * 8, 4, 2, padding=1), activation,
+        #     nn.ConvTranspose2d(self.config.depth * 8, self.config.depth * 4, 4, 2, padding=1), activation,
+        #     nn.ConvTranspose2d(self.config.depth * 4, self.config.depth * 2, 4, 2, padding=1), activation,
+        #     nn.ConvTranspose2d(self.config.depth * 2, self.config.depth * 1, 4, 2, padding=1), activation,
+        #     nn.ConvTranspose2d(self.config.depth * 1, self.channels, 4, 2, padding=1, output_padding=0)
+        # )
+
+        # 64x64
         self.network = nn.Sequential(
             nn.Linear(inputSize, self.config.depth*32),
             nn.Unflatten(1, (self.config.depth*32, 1)),
             nn.Unflatten(2, (1, 1)),
-            nn.ConvTranspose2d(self.config.depth*32, self.config.depth*16, self.config.kernelSize,     self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*16, self.config.depth*8,  self.config.kernelSize,     self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*8,  self.config.depth*4,  self.config.kernelSize,     self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*4,  self.config.depth*2,  self.config.kernelSize,     self.config.stride),    activation,
-            nn.ConvTranspose2d(self.config.depth*2,  self.channels,        self.config.kernelSize + 1, self.config.stride))
+            nn.ConvTranspose2d(self.config.depth*32, self.config.depth*4, self.config.kernelSize,     self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*4,  self.config.depth*2, self.config.kernelSize,     self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*2,  self.config.depth*1, self.config.kernelSize + 1, self.config.stride),    activation,
+            nn.ConvTranspose2d(self.config.depth*1,  self.channels,       self.config.kernelSize + 1, self.config.stride))
 
     def forward(self, x):
         return self.network(x)
@@ -156,7 +181,8 @@ class Actor(nn.Module):
         self.device = device
 
         # Network outputs logits for each binary action
-        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize]*self.config.numLayers, actionSize, self.config.activation)
+        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize] * self.config.numLayers, actionSize,
+                                         self.config.activation)
 
     def forward(self, x, training=False):
         logits = self.network(x)
@@ -170,7 +196,7 @@ class Actor(nn.Module):
         if training:
             # Calculate log probabilities and entropy
             logprobs = distributions.log_prob(sample)
-            ent  = distributions.entropy()
+            ent = distributions.entropy()
 
             return sample, logprobs, ent
         else:
@@ -183,7 +209,8 @@ class Critic(nn.Module):
         self.config = config
 
         # The sequentialModel1D is configured to output 2 values (mean and log_std for the value distribution)
-        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize]*self.config.numLayers, 2, self.config.activation)
+        self.network = sequentialModel1D(inputSize, [self.config.hiddenSize] * self.config.numLayers, 2,
+                                         self.config.activation)
 
     def forward(self, x):
         # The network's output is split into two equal parts along the last dimension.
