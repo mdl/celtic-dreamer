@@ -10,7 +10,7 @@ checkpointInterval: 250     # Number of gradient steps between saving checkpoint
 resume: False                # Whether to resume training from a checkpoint
 checkpointToLoad: 50k        # Checkpoint to load if resuming training (e.g., "50k" means 50,000 steps)
 
-episodesBeforeStart: 5       # Number of episodes to collect experience before starting training
+episodesBeforeStart: 3       # Number of episodes to collect experience before starting training
 numInteractionEpisodes: 1    # Number of episodes to interact with environment between training iterations
 numEvaluationEpisodes: 1     # Number of episodes to evaluate the agent's performance
 

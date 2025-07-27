@@ -132,7 +132,7 @@ class Dreamer:
 
         klLossShiftForGraphing = (self.config.betaPrior + self.config.betaPosterior) * self.config.freeNats
 
-        if self.totalGradientSteps % 500 == 0:  # Log every 1000 gradient steps
+        if self.totalGradientSteps % 100 == 0:  # Log every 100 gradient steps
             from torchvision.utils import save_image
             import os
             os.makedirs("reconstructions", exist_ok=True)
