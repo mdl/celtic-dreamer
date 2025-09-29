@@ -36,15 +36,6 @@ def loadConfig(config_path):
     return attridict(config)
 
 
-def getEnvProperties(env):
-    observationShape = env.observation_space.shape
-    if isinstance(env.action_space, gym.spaces.MultiBinary):
-        actionSize = env.action_space.n
-    else:
-        raise ValueError(f"Unsupported action space type: {type(env.action_space)}. Only MultiBinary is supported.")
-    return observationShape, actionSize
-
-
 def saveLossesToCSV(filename, metrics):
     fileAlreadyExists = os.path.isfile(filename + ".csv")
     with open(filename + ".csv", mode='a', newline='') as file:
@@ -136,37 +127,48 @@ def sequentialModel1D(inputSize, hiddenSizes, outputSize, activationFunction="Ta
     return nn.Sequential(*layers)
 
 
-def computeLambdaValues(rewards, values, continues, lambda_=0.95):
-    returns = torch.zeros_like(rewards)
-    bootstrap = values[:, -1]
-    for i in reversed(range(rewards.shape[-1])):
-        returns[:, i] = rewards[:, i] + continues[:, i] * ((1 - lambda_) * values[:, i] + lambda_ * bootstrap)
-        bootstrap = returns[:, i]
-    return returns
+# def computeLambdaValues(rewards, values, continues, lambda_=0.95):
+#     returns = torch.zeros_like(rewards)
+#     bootstrap = values[:, -1]
+#     for i in reversed(range(rewards.shape[-1])):
+#         returns[:, i] = rewards[:, i] + continues[:, i] * ((1 - lambda_) * values[:, i] + lambda_ * bootstrap)
+#         bootstrap = returns[:, i]
+#     return returns
 
+def compute_gae(rewards, values, gamma, lam):
+    """
+    Computes GAE advantages and returns.
+    Args:
+        rewards (Tensor): Shape [batch, T]
+        values (Tensor): Shape [batch, T+1] (V(s_0) to V(s_T))
+        gamma (float): Scalar discount factor.
+        lam (float): Scalar GAE lambda parameter.
+    Returns:
+        advantages (Tensor): Shape [batch, T]
+        returns (Tensor): Shape [batch, T]
+    """
+    T = rewards.size(1)
+    advantages = torch.zeros_like(rewards)
+    last_adv = torch.zeros(rewards.size(0), device=rewards.device)
+
+    for t in reversed(range(T)):
+        # The value of the next state is V(s_{t+1})
+        next_value = values[:, t + 1]
+
+        # Calculate the TD-error (delta)
+        delta = rewards[:, t] + gamma * next_value - values[:, t]
+
+        # Update the advantage using the recursive GAE formula
+        last_adv = delta + gamma * lam * last_adv
+        advantages[:, t] = last_adv
+
+    # The returns are the advantages plus the original values
+    returns = advantages + values[:, :T]
+
+    return advantages, returns
 
 def ensureParentFolders(*paths):
     for path in paths:
         parentFolder = os.path.dirname(path)
         if parentFolder and not os.path.exists(parentFolder):
             os.makedirs(parentFolder, exist_ok=True)
-
-
-class Moments(nn.Module):
-    def __init__( self, device, decay = 0.99, min_=1, percentileLow = 0.05, percentileHigh = 0.95):
-        super().__init__()
-        self._decay = decay
-        self._min = torch.tensor(min_)
-        self._percentileLow = percentileLow
-        self._percentileHigh = percentileHigh
-        self.register_buffer("low", torch.zeros((), dtype=torch.float32, device=device))
-        self.register_buffer("high", torch.zeros((), dtype=torch.float32, device=device))
-
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = x.detach()
-        low = torch.quantile(x, self._percentileLow)
-        high = torch.quantile(x, self._percentileHigh)
-        self.low = self._decay*self.low + (1 - self._decay)*low
-        self.high = self._decay*self.high + (1 - self._decay)*high
-        inverseScale = torch.max(self._min, self.high - self.low)
-        return self.low.detach(), inverseScale.detach()

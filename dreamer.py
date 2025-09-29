@@ -7,7 +7,7 @@ import os
 
 from networks import RecurrentModel, PriorNet, PosteriorNet, RewardModel, ContinueModel, EncoderConv, DecoderConv, \
     Actor, Critic
-from utils import computeLambdaValues, Moments
+from utils import compute_gae
 from buffer import ReplayBuffer
 import imageio
 
@@ -25,8 +25,8 @@ class Dreamer:
 
         self.actor = Actor(self.fullStateSize, actionSize, device, config.actor).to(self.device)
         self.critic = Critic(self.fullStateSize, config.critic).to(self.device)
-        self.encoder = EncoderConv(observationShape, self.config.encodedObsSize, config.encoder).to(self.device)
-        self.decoder = DecoderConv(self.fullStateSize, observationShape, config.decoder).to(self.device)
+        self.encoder = EncoderConv(observationShape, self.config.encodedObsSize).to(self.device)
+        self.decoder = DecoderConv(self.fullStateSize, observationShape).to(self.device)
         self.recurrentModel = RecurrentModel(config.recurrentSize, self.latentSize, actionSize,
                                              config.recurrentModel).to(self.device)
         self.priorNet = PriorNet(config.recurrentSize, config.latentLength, config.latentClasses, config.priorNet).to(
@@ -38,7 +38,6 @@ class Dreamer:
             self.continuePredictor = ContinueModel(self.fullStateSize, config.continuation).to(self.device)
 
         self.buffer = ReplayBuffer(observationShape, actionSize, config.buffer, device)
-        self.valueMoments = Moments(device)
 
         self.worldModelParameters = (list(self.encoder.parameters()) + list(self.decoder.parameters()) + list(
             self.recurrentModel.parameters()) +
@@ -58,7 +57,7 @@ class Dreamer:
     # data is sampled data from buffer
     def worldModelTraining(self, data):
         # data.observations has correct shape of torch.Size([32, 256, 3, 128, 128])
-
+        self.recurrentModel.reset()
 
         encodedObservations = (self.encoder(data.observations.view(-1, *self.observationShape))
             .view(self.config.batchSize, self.config.batchLength, -1))
@@ -112,9 +111,8 @@ class Dreamer:
         priorLoss = kl_divergence(posteriorDistributionSG, priorDistribution)
         posteriorLoss = kl_divergence(posteriorDistribution, priorDistributionSG)
         freeNats = torch.full_like(priorLoss, self.config.freeNats)
-# 71, 121, 400, 400, 400
-        priorLoss = self.config.betaPrior * torch.maximum(priorLoss, freeNats)
-        posteriorLoss = self.config.betaPosterior * torch.maximum(posteriorLoss, freeNats)
+        priorLoss = self.config.betaPrior * torch.clamp_min(priorLoss, freeNats)
+        posteriorLoss = self.config.betaPosterior * torch.clamp_min(posteriorLoss, freeNats)
         klLoss = (priorLoss + posteriorLoss).mean()
 
         worldModelLoss = reconstructionLoss + rewardLoss + klLoss  # I think that the reconstruction loss is relatively a bit too high (11k)
@@ -173,6 +171,8 @@ class Dreamer:
         return fullStates.view(-1, self.fullStateSize).detach(), metrics
 
     def behaviorTraining(self, fullState):
+        print('start behavior training')
+
         recurrentState, latentState = torch.split(fullState, (self.recurrentSize, self.latentSize), -1)
         fullStates, logprobs, entropies = [], [], []
         for _ in range(self.config.imaginationHorizon):
@@ -186,37 +186,64 @@ class Dreamer:
             fullStates.append(fullState)
             logprobs.append(logprob)
             entropies.append(entropy)
-        fullStates = torch.stack(fullStates,
-                                 dim=1)  # (batchSize*batchLength, imaginationHorizon, recurrentSize + latentLength*latentClasses)
+        fullStates = torch.stack(fullStates, dim=1)  # (batchSize*batchLength, imaginationHorizon, recurrentSize + latentLength*latentClasses)
         logprobs = torch.stack(logprobs[1:], dim=1)  # (batchSize*batchLength, imaginationHorizon-1)
         entropies = torch.stack(entropies[1:], dim=1)  # (batchSize*batchLength, imaginationHorizon-1)
 
         predictedRewards = self.rewardPredictor(fullStates[:, :-1]).mean
-        values = self.critic(fullStates).mean
-        continues = self.continuePredictor(
-            fullStates).mean if self.config.useContinuationPrediction else torch.full_like(predictedRewards,
-                                                                                           self.config.discount)
-        lambdaValues = computeLambdaValues(predictedRewards, values, continues, self.config.lambda_)
+        values = self.critic(fullStates[:, :-1]).mean
 
-        _, inverseScale = self.valueMoments(lambdaValues)
-        advantages = (lambdaValues - values[:, :-1]) / inverseScale
+        last_values = self.critic(fullStates[:, -1:]).mean
 
-        actorLoss = -torch.mean(advantages.detach() * logprobs + self.config.entropyScale * entropies)
+        values_with_bootstrap = torch.cat([values, last_values], dim=1)
+
+        # continues = self.continuePredictor(
+        #     fullStates).mean if self.config.useContinuationPrediction else torch.full_like(predictedRewards,
+        #                                                                                    self.config.discount)
+
+        advantages, returns = compute_gae(
+            rewards=predictedRewards,
+            values=values_with_bootstrap,
+            gamma=self.config.discount,
+            lam=self.config.lambda_
+        )
+
+        # added code - remove
+        raw_adv = advantages.detach()
+        print(
+            f"[Replay {self.totalGradientSteps:>5d}] adv_mean={raw_adv.mean().item():.4f}, adv_std={raw_adv.std(unbiased=False).item():.4f}")
+        ##
+
+        normalized_advantages = ((advantages - advantages.mean()) / (advantages.std() + 1e-8))
+
+        actorLoss = -torch.mean(normalized_advantages.detach() * logprobs + self.config.entropyScale * entropies)
 
         self.actorOptimizer.zero_grad()
         actorLoss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), self.config.gradientClip,
                                  norm_type=self.config.gradientNormType)
         self.actorOptimizer.step()
+        ## new code
+        total_norm = torch.norm(torch.stack([
+            p.grad.norm() for p in self.actor.parameters() if p.grad is not None
+        ]), 2).item()
+        print(f"[Replay {self.totalGradientSteps:>5d}] actor_grad_norm = {total_norm:.4f}")
+        ##
 
-        valueDistributions = self.critic(fullStates[:, :-1].detach())
-        criticLoss = -torch.mean(valueDistributions.log_prob(lambdaValues.detach()))
+        criticLoss = F.mse_loss(values, returns.detach())
 
         self.criticOptimizer.zero_grad()
         criticLoss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), self.config.gradientClip,
                                  norm_type=self.config.gradientNormType)
         self.criticOptimizer.step()
+
+        ## new code
+        crit_norm = torch.norm(torch.stack([
+            p.grad.norm() for p in self.critic.parameters() if p.grad is not None
+        ]), 2).item()
+        print(f"[Replay {self.totalGradientSteps:>5d}] critic_grad_norm = {crit_norm:.4f}")
+        ##
 
         metrics = {
             "actorLoss": actorLoss.item(),
@@ -232,6 +259,8 @@ class Dreamer:
                                filename="videos/unnamedVideo", fps=30, macroBlockSize=16):
         scores = []
         for i in range(numEpisodes):
+            self.recurrentModel.reset()
+
             recurrentState = torch.zeros(1, self.recurrentSize, device=self.device)
             latentState = torch.zeros(1, self.latentSize, device=self.device)
             action = torch.zeros(1, dtype=torch.int64, device=self.device)
@@ -255,12 +284,13 @@ class Dreamer:
 
                 # actor performs action based on current full state
                 action = self.actor(torch.cat((recurrentState, latentState), -1))
-                actionNumpy = action.cpu().numpy().reshape(-1)
+                actionNumpy = action.cpu().numpy().reshape(-1)[0]
+                actionOneHotNumpy = F.one_hot(action, num_classes=self.actionSize).squeeze(0).cpu().numpy()
 
                 nextObservation, reward, done = env.step(actionNumpy)
                 if not evaluation:
                     # action that was done + state after that action
-                    self.buffer.add(observation, actionNumpy, reward, nextObservation, done)
+                    self.buffer.add(observation, actionOneHotNumpy, reward, done)
 
                 if saveVideo and i == 0:
                     frame = env.render()

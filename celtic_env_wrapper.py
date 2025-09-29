@@ -4,7 +4,7 @@ import cv2
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 import mss
 from pynput.keyboard import Controller
 from pynput.mouse import Controller as MouseController, Button
@@ -31,7 +31,7 @@ class CelticHeroesEnv(gym.Env):
 
         # Observation: 128×128×3 RGB
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(64, 64, 3), dtype=np.uint8
+            low=0, high=255, shape=(128, 128, 3), dtype=np.uint8
         )
 
         # Input & capture setup
@@ -41,7 +41,7 @@ class CelticHeroesEnv(gym.Env):
         self.prev_kill_id = None
 
         # Window target size & capture region
-        self.W, self.H = 1280, 720
+        self.W, self.H = 1255, 720
         self._set_capture_region()
 
     def _set_capture_region(self):
@@ -80,11 +80,18 @@ class CelticHeroesEnv(gym.Env):
         kill_img = frame.crop(self._normalize_dimensions(w0, (100, 120, 340, 370)))
         died_img = frame.crop(self._normalize_dimensions(w0, (500, 200, 750, 400)))
 
-        side = min(w0, h0)
-        lc = (w0 - side) // 2
-        tc = (h0 - side) // 2
-        frame = frame.crop((lc, tc, lc + side, tc + side))
-        frame = frame.resize((64, 64), Image.BILINEAR)
+        frame = ImageOps.pad(
+            frame, (128, 128),
+            method=Image.BILINEAR,
+            color=(0,0,0),
+            centering=(0.5, 0.5)
+        )
+
+        # side = min(w0, h0)
+        # lc = (w0 - side) // 2
+        # tc = (h0 - side) // 2
+        # frame = frame.crop((lc, tc, lc + side, tc + side))
+        # frame = frame.resize((128, 128), Image.BILINEAR)
 
         return np.array(frame), np.array(kill_img), np.array(died_img)
 
@@ -111,7 +118,7 @@ class CelticHeroesEnv(gym.Env):
         time.sleep(.1)
         self.mouse.click(Button.left)
         time.sleep(2.0)
-        self.mouse.position = (left + 525, top + 458) # 438 458
+        self.mouse.position = (left + 525, top + 448) # 438 458
         time.sleep(.1)
         self.mouse.click(Button.left)
 
@@ -134,7 +141,7 @@ class CelticHeroesEnv(gym.Env):
         if action == 1:
             print('going forward ', self.current_steps, ' of ', self.max_steps)
             self.keyboard.press('w')
-            time.sleep(self.interval * 15)
+            time.sleep(self.interval * 8)
         elif action == 2:
             print('turning left ', self.current_steps, ' of ', self.max_steps)
             self.keyboard.press('q')
@@ -145,7 +152,7 @@ class CelticHeroesEnv(gym.Env):
             time.sleep(self.interval * 3)
         elif action == 0:
             print('waiting ', self.current_steps, ' of ', self.max_steps)
-            time.sleep(self.interval * 15)
+            time.sleep(self.interval * 8)
 
         # release again so no sticky keys
         for k in ('w', 'q', 'e'):
@@ -155,9 +162,9 @@ class CelticHeroesEnv(gym.Env):
 
         # compute reward
         kill_id = self._parse_kill_id(kill_img)
-        # reward = 1.0 if (kill_id and kill_id != self.prev_kill_id) else 0.0
-        # if kill_id: self.prev_kill_id = kill_id
-        reward = 1.0 if kill_id else 0.0
+        reward = 1.0 if (kill_id and kill_id != self.prev_kill_id) else 0.0
+        if kill_id: self.prev_kill_id = kill_id
+        # reward = 1.0 if kill_id else 0.0
 
         if self._detect_died(died_img):
             print('died', time.time())
@@ -176,7 +183,9 @@ class CelticHeroesEnv(gym.Env):
 
         self.current_steps += 1
 
-        return obs, reward - 0.01, terminated, truncated, info
+        wait_fine = 0 if action == 1 else -0.01
+
+        return obs, reward + wait_fine, terminated, truncated, info
 
     def render(self):
         # implement if you want to display frames

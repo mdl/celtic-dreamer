@@ -2,22 +2,24 @@ environmentName: CelticHeroes  # Name of the environment being used
 runName: test                # Identifier for the current training run
 seed: 1234                   # Random seed for reproducibility
 
-gradientSteps: 60000         # Total number of gradient steps to perform during training
-replayRatio: 100 #100             # Number of model updates per environment interaction
+gradientStepsWorldPretrain: 10000         # Total number of gradient steps to perform during training
+gradientSteps: 10000
+
+replayRatio: 5             # Number of model updates per environment interaction
 saveMetrics: True            # Whether to save training metrics
 saveCheckpoints: True        # Whether to save model checkpoints
-checkpointInterval: 250     # Number of gradient steps between saving checkpoints
+checkpointInterval: 200     # Number of gradient steps between saving checkpoints
 resume: False                # Whether to resume training from a checkpoint
 checkpointToLoad: 50k        # Checkpoint to load if resuming training (e.g., "50k" means 50,000 steps)
 
-episodesBeforeStart: 3       # Number of episodes to collect experience before starting training
+episodesBeforeStart: 3       # Numbesr of episodes to collect experience before starting training
 numInteractionEpisodes: 1    # Number of episodes to interact with environment between training iterations
 numEvaluationEpisodes: 1     # Number of episodes to evaluate the agent's performance
 
 dreamer:
-    batchSize: 64            # Number of sequences sampled from replay buffer per update
-    batchLength: 128          # Length of each sequence sampled from replay buffer
-    imaginationHorizon: 15   # Number of imagination steps for actor-critic training
+    batchSize: 8 #64            # Number of sequences sampled from replay buffer per update
+    batchLength: 64          # Length of each sequence sampled from replay buffer
+    imaginationHorizon: 5   # Number of imagination steps for actor-critic training
 
     recurrentSize: 512 #512       # Size of the recurrent state vector in the world model
     latentLength: 16 #16         # Number of discrete latent variables
@@ -25,37 +27,26 @@ dreamer:
     encodedObsSize: 1024 #2048     # Size of the encoded observation vector
 
     useContinuationPrediction: False  # Whether to predict episode termination
-    actorLR: 0.00004         # Learning rate for the actor network
+    actorLR: 0.00008         # Learning rate for the actor network
     criticLR: 0.0001         # Learning rate for the critic network
-    worldModelLR: 0.0002     # Learning rate for the world model components
+    worldModelLR: 0.0001     # Learning rate for the world model components
     gradientNormType: 2      # Type of norm used for gradient clipping (2 = L2 norm)
     gradientClip: 100        # Maximum gradient norm for clipping
 
     discount: 0.997          # Discount factor for future rewards
-    lambda_: 0.95            # Lambda parameter for TD(λ) return calculation
+    lambda_: 0.75            # Lambda parameter for TD(λ) return calculation
     freeNats: 1              # Minimum KL divergence in nats (prevents too strong regularization)
     betaPrior: 1.0           # Weight for the prior loss in the KL divergence
     betaPosterior: 0.1       # Weight for the posterior loss in the KL divergence
-    entropyScale: 0.0003     # Scale factor for entropy regularization in actor loss
+    entropyScale: 0.05     # Scale factor for entropy regularization in actor loss
 
     buffer:
-        capacity: 50000      # Maximum number of transitions stored in the replay buffer
-
-    encoder:                 # Convolutional neural network that encodes observations
-        depth: 16            # Base depth of convolutional layers
-        stride: 2            # Stride for convolutional layers
-        kernelSize: 4        # Kernel size for convolutional layers
-        activation: Tanh     # Activation function for encoder network
-
-    decoder:                 # Deconvolutional neural network that reconstructs observations
-        depth: 16            # Base depth of deconvolutional layers
-        stride: 2            # Stride for deconvolutional layers
-        kernelSize: 5        # Kernel size for deconvolutional layers
-        activation: Tanh     # Activation function for decoder network
+        loadFrom: celtic_heroes_dataset.npz # only works to offline world training
+        capacity: 30000      # Maximum number of transitions stored in the replay buffer
 
     recurrentModel:          # GRU-based recurrent model that updates the recurrent state
         hiddenSize: 200      # Size of hidden layer in the recurrent model
-        activation: Tanh     # Activation function for recurrent model
+        activation: gelu     # Activation function for recurrent model
 
     priorNet:                # Network that predicts prior distribution over latent states
         hiddenSize: 200  #200      # Size of hidden layers in the prior network
@@ -94,3 +85,4 @@ folderNames:                 # Directories for saving various outputs
     plotsFolder: plots       # Directory for saving metric plots
     checkpointsFolder: checkpoints  # Directory for saving model checkpoints
     videosFolder: videos     # Directory for saving evaluation videos
+    bufferFolder: buffers

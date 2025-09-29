@@ -1,1 +1,4 @@
-- support discrete action space
+- critic should take action parameter too - LATER
+- use 128x128 px observation
+- change wrapper to not crop images but squeeze
+- change recurrent network to transformer
